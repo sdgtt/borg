@@ -1,8 +1,9 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-KICKSTART_IP="192.168.86.65"
-SERVER_ROOT_IP="192.168.86"
+KICKSTART_IP="192.168.10.10"
+SERVER_ROOT_IP="192.168.10"
+DEFAULT_INTERFACE="eno1"
 
 Vagrant.configure("2") do |config|
   config.vm.box = "ubuntu/focal64"
@@ -32,7 +33,7 @@ Vagrant.configure("2") do |config|
   # Create a public network, which generally matched to bridged network.
   # Bridged networks make the machine appear as another physical device on
   # your network.
-  # config.vm.network "public_network"
+  config.vm.network "public_network", ip: KICKSTART_IP, bridge: DEFAULT_INTERFACE
 
   # Share an additional folder to the guest VM. The first argument is
   # the path on the host to the actual folder. The second argument is
@@ -82,7 +83,7 @@ Vagrant.configure("2") do |config|
 
     SERVER_BC_IP=${SERVER_ROOT_IP}.255
 
-    echo "port 0" >> /etc/dnsmasq.conf
+    echo "port=0" >> /etc/dnsmasq.conf
     echo "dhcp-range=${SERVER_BC_IP},proxy" >> /etc/dnsmasq.conf
     echo "log-dhcp" >> /etc/dnsmasq.conf
     echo "enable-tftp" >> /etc/dnsmasq.conf
@@ -100,6 +101,7 @@ Vagrant.configure("2") do |config|
 
     # Add script for post boot
     wget https://gist.githubusercontent.com/tfcollins/55ea3b1e3ef19ffc45bd2d6fc3398a93/raw/3f6393cefccbba8b0bb5b2b18845d6405262d0a7/write_sd_remote.py
+    sed -i "s/192.168.86.44/${KICKSTART_IP}/g" write_sd_remote.py
     mv write_sd_remote.py /srv/nfs/rpi4/home/pi/
     echo "echo raspberry | sudo -S python3 /home/pi/write_sd.py" >> /srv/nfs/rpi4/home/pi/.bashrc
 
