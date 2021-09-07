@@ -49,7 +49,7 @@ Vagrant.configure("2") do |config|
   config.vm.provision "file", source: "borg", destination: "$HOME/borg"
 
 
-  config.vm.provision "shell", inline: <<-SHELL
+  config.vm.provision "shell", env: {"KICKSTART_IP"=> KICKSTART_IP, "SERVER_ROOT_IP"=>SERVER_ROOT_IP}, inline: <<-SHELL
     mkdir borg
     mv * borg/
     ls
@@ -103,22 +103,24 @@ Vagrant.configure("2") do |config|
     wget https://gist.githubusercontent.com/tfcollins/55ea3b1e3ef19ffc45bd2d6fc3398a93/raw/3f6393cefccbba8b0bb5b2b18845d6405262d0a7/write_sd_remote.py
     sed -i "s/192.168.86.44/${KICKSTART_IP}/g" write_sd_remote.py
     mv write_sd_remote.py /srv/nfs/rpi4/home/pi/
-    echo "echo raspberry | sudo -S python3 /home/pi/write_sd.py" >> /srv/nfs/rpi4/home/pi/.bashrc
+    echo "echo raspberry | sudo -S python3 /home/pi/write_sd_remote.py" >> /srv/nfs/rpi4/home/pi/.bashrc
 
     # Enable autologin (I Think this works?)
     mkdir -p /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d
     echo "[Service]" > /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
-    echo "ExecStart=" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
+    # echo "ExecStart=" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
     echo "ExecStart=-/sbin/agetty --autologin pi --noclear %I $TERM" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
 
     echo "[Service]" > /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/noclear.conf
     echo "TTYVTDisallocate=no" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/noclear.conf
 
-    # Enable all services
-    service rpcbind start
-    service rpcbind start
-    service nfs-server start
-    service dnsmasq start
+    # Enable and start all services
+    systemctl enable dnsmasq
+    systemctl enable rpcbind
+    systemctl enable nfs-server
+    systemctl start dnsmasq
+    systemctl start rpcbind
+    systemctl start nfs-server
 
     # Start up API server
     apt-get install -y python3-pip
