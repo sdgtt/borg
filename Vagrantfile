@@ -1,13 +1,21 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-KICKSTART_IP="192.168.86.65"
-SERVER_ROOT_IP="192.168.86"
+#KICKSTART_IP="192.168.86.65"
+#SERVER_ROOT_IP="192.168.86"
+#SERVER_BC_IP="192.168.86.255"
 
 Vagrant.configure("2") do |config|
   config.vm.box = "ubuntu/focal64"
   config.vm.hostname = "borg"
   config.vm.define "borg-vm"
+  config.env.enable # Enable vagrant-env(.env)
+  #config.vm.network :bridged
+  #config.vm.network "public_network", bridge: "eno1", mac: "08:00:27:3d:2b:4b"
+  config.vm.network "public_network", bridge: "eno1", mac: "0800273d2b4b"
+  config.vm.network "forwarded_port", guest: 80, host: 80
+  config.vm.network "forwarded_port", guest: 6000, host: 6000
+
 
   # Set VM name in Virtualbox
   config.vm.provider "virtualbox" do |v|
@@ -45,16 +53,20 @@ Vagrant.configure("2") do |config|
   # Example for VirtualBox:
   #
 
-  config.vm.provision "file", source: "borg", destination: "$HOME/borg"
+  config.vm.provision "file", source: ".env", destination: "$HOME/vars.sh"
 
+  config.vm.provision "file", source: "borg", destination: "$HOME/borg"
+  #config.vm.provision "file", source: "2021-05-07-raspios-buster-armhf-lite.zip" , destination: "$HOME/"
+  #config.vm.provision "file", source: "2021-02-23-ADI-Kuiper.img.xz" , destination: "$HOME/"
 
   config.vm.provision "shell", inline: <<-SHELL
+    set -x
+    source vars.sh
     mkdir borg
-    mv * borg/
+    mv *.py borg/
     ls
-    ls borg/
     apt-get update
-    apt-get install -y nfs-server nfs-common nfs-client dnsmasq kpartx unzip tar xz-utils
+    apt-get install -y nfs-server nfs-common nfs-client dnsmasq kpartx unzip tar xz-utils screen net-tools nginx
     # Set up shares
     wget https://downloads.raspberrypi.org/raspios_lite_armhf/images/raspios_lite_armhf-2021-05-28/2021-05-07-raspios-buster-armhf-lite.zip
     unzip 2021-05-07-raspios-buster-armhf-lite.zip
@@ -70,6 +82,14 @@ Vagrant.configure("2") do |config|
     mount /dev/mapper/${ROOT}p1 bootmnt/
     mount /dev/mapper/${ROOT}p2 rootmnt/
 
+    # Set IPs
+    IP=$(ip -4 addr | grep -v "10.0.2" | grep -v 127 | awk '$1 == \"inet\" {print $2}' | awk -F'/' '{print $1}')
+    echo "FOUND IP |${IP}|"
+    O=(${IP//\./ })
+    SERVER_BC_IP="${O[0]}.${O[1]}.${O[2]}.255"
+    KICKSTART_IP="${IP}"
+    #exit 1
+
     # Create NFS share and TFTP boot share
     # For /etc/dnsmasq.conf the line port 0 if removed if the DHCP and TFTP server are the same
     mkdir -p /srv/tftpboot
@@ -80,48 +100,59 @@ Vagrant.configure("2") do |config|
     sed -i /UUID/d /srv/nfs/rpi4/etc/fstab
     echo "/srv/nfs/rpi4 *(rw,sync,no_subtree_check,no_root_squash)" >> /etc/exports
 
-    SERVER_BC_IP=${SERVER_ROOT_IP}.255
 
-    echo "port 0" >> /etc/dnsmasq.conf
+    echo "port=0" >> /etc/dnsmasq.conf
     echo "dhcp-range=${SERVER_BC_IP},proxy" >> /etc/dnsmasq.conf
     echo "log-dhcp" >> /etc/dnsmasq.conf
     echo "enable-tftp" >> /etc/dnsmasq.conf
     echo "tftp-root=/srv/tftpboot" >> /etc/dnsmasq.conf
     echo 'pxe-service=0,"Raspberry Pi Boot"' >> /etc/dnsmasq.conf
+    cat /etc/dnsmasq.conf
     
     echo "console=serial0,115200 console=tty root=/dev/nfs nfsroot=${KICKSTART_IP}:/srv/nfs/rpi4,vers=3 rw ip=dhcp rootwait elevator=deadline" > /srv/nfs/rpi4/boot/cmdline.txt
 
     # Create Kuiper image post boot which will be written to SD card
     wget http://swdownloads.analog.com/cse/kuiper/2021-02-23-ADI-Kuiper.img.xz
     unxz 2021-02-23-ADI-Kuiper.img.xz
-    mkdir /srv/nfs/img
-    mv 2021-02-23-ADI-Kuiper.img /srv/nfs/img/
-    echo "/srv/nfs/img *(rw,sync,no_subtree_check,no_root_squash)" >> /etc/exports
+    mkdir /srv/nfs/imgs
+    mv 2021-02-23-ADI-Kuiper.img /srv/nfs/imgs/
+    echo "/srv/nfs/imgs *(rw,sync,no_subtree_check,no_root_squash)" >> /etc/exports
 
     # Add script for post boot
     wget https://gist.githubusercontent.com/tfcollins/55ea3b1e3ef19ffc45bd2d6fc3398a93/raw/3f6393cefccbba8b0bb5b2b18845d6405262d0a7/write_sd_remote.py
     mv write_sd_remote.py /srv/nfs/rpi4/home/pi/
-    echo "echo raspberry | sudo -S python3 /home/pi/write_sd.py" >> /srv/nfs/rpi4/home/pi/.bashrc
+    #echo "echo raspberry | sudo -S python3 /home/pi/write_sd.py" >> /srv/nfs/rpi4/home/pi/.bashrc
+    echo "python3 /home/pi/write_sd_remote.py" >> /srv/nfs/rpi4/etc/rc.local
+    sed -i '/exit/d' /srv/nfs/rpi4/etc/rc.local
+    echo "exit 0" >> /srv/nfs/rpi4/etc/rc.local
 
     # Enable autologin (I Think this works?)
-    mkdir -p /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d
-    echo "[Service]" > /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
-    echo "ExecStart=" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
-    echo "ExecStart=-/sbin/agetty --autologin pi --noclear %I $TERM" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
+    #mkdir -p /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d
+    #echo "[Service]" > /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
+    #echo "ExecStart=" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
+    #echo "ExecStart=-/sbin/agetty --autologin pi --noclear %I $TERM" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
 
-    echo "[Service]" > /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/noclear.conf
-    echo "TTYVTDisallocate=no" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/noclear.conf
+    #echo "[Service]" > /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/noclear.conf
+    #echo "TTYVTDisallocate=no" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/noclear.conf
 
     # Enable all services
-    service rpcbind start
-    service rpcbind start
-    service nfs-server start
-    service dnsmasq start
+    service rpcbind restart
+    service rpcbind restart
+    service nfs-server restart
+    service dnsmasq restart
+
+    systemctl status rpcbind.service
+    systemctl status nfs-server.service
+    systemctl status dnsmasq.service
 
     # Start up API server
     apt-get install -y python3-pip
     pip3 install fastapi uvicorn
-    uvicorn borg.main:app --reload --host 0.0.0.0 --port 6000
+    cd $HOME
+    screen -dm bash -c "cd /home/vagrant && uvicorn borg.main:app --reload --host 0.0.0.0 --port 6000"
+    screen -list
+    ifconfig
   SHELL
 
 end
+
