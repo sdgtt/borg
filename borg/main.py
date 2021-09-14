@@ -30,7 +30,7 @@ def add_dev(serial: str):
     if serial in devices:
         raise HTTPException(status_code=404, detail=f"Device already in database")
     o = os.system(
-        'echo "/srv/nfs/rpi4/boot /srv/tftpboot/{serial} none defaults,bind 0 0" >> /etc/fstab'
+        'echo "/srv/nfs/rpi4/boot /srv/tftpboot/{} none defaults,bind 0 0" >> /etc/fstab'.format(serial)
     )
     if o != 0:
         raise HTTPException(status_code=404, detail=f"Failed to add device to fstab")
@@ -43,10 +43,12 @@ def set_dev(serial: str, mode: bool):
     """Make boot files availabe or not-available"""
     if serial not in devices:
         raise HTTPException(status_code=404, detail=f"Device {serial} not in database")
-    if mode:
-        o = os.system("mount /srv/tftpboot/{serial}")
+    if mode and not devices[serial]:
+        o = os.system("mkdir -p /srv/tftpboot/{}; mount /srv/tftpboot/{}".format(serial,serial))
+    elif not mode and devices[serial]:
+        o = os.system("umount -f /srv/tftpboot/{}; rmdir /srv/tftpboot/{}".format(serial,serial))
     else:
-        o = os.system("unmount /srv/tftpboot/{serial}")
+        raise HTTPException(status_code=500, detail=f"Internal error")
     if o != 0:
         raise HTTPException(status_code=404, detail=f"Failed to mount/umount device")
     devices[serial] = mode
@@ -59,4 +61,4 @@ def get_status(serial: str):
         raise HTTPException(
             status_code=404, detail=f"Device with serial {serial} not found"
         )
-    return {"serial": serial, "status": device[serial]}
+    return {"serial": serial, "status": devices[serial]}
