@@ -129,7 +129,7 @@ Vagrant.configure("2") do |config|
 
     # Start up API server
     apt-get install -y python3-pip
-    pip3 install fastapi uvicorn
+    pip3 install fastapi uvicorn pickledb
     # uvicorn borg.main:app --reload --host 0.0.0.0 --port 6000
 
     # Install and configure supervisord to manage the borg service
