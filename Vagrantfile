@@ -1,6 +1,7 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+#TODO: Set these parameters as an environment variable
 KICKSTART_IP="192.168.10.10"
 SERVER_ROOT_IP="192.168.10"
 DEFAULT_INTERFACE="eno1"
@@ -50,9 +51,9 @@ Vagrant.configure("2") do |config|
 
 
   config.vm.provision "shell", env: {"KICKSTART_IP"=> KICKSTART_IP, "SERVER_ROOT_IP"=>SERVER_ROOT_IP}, inline: <<-SHELL
-    mkdir borg
-    mv * borg/
-    ls
+    # mkdir borg
+    # mv * borg/
+    # ls
     ls borg/
     apt-get update
     apt-get install -y nfs-server nfs-common nfs-client dnsmasq kpartx unzip tar xz-utils
@@ -101,18 +102,21 @@ Vagrant.configure("2") do |config|
 
     # Add script for post boot
     wget https://gist.githubusercontent.com/tfcollins/55ea3b1e3ef19ffc45bd2d6fc3398a93/raw/3f6393cefccbba8b0bb5b2b18845d6405262d0a7/write_sd_remote.py
+    #### make some correction to the script ####
     sed -i "s/192.168.86.44/${KICKSTART_IP}/g" write_sd_remote.py
-    mv write_sd_remote.py /srv/nfs/rpi4/home/pi/
-    echo "echo raspberry | sudo -S python3 /home/pi/write_sd_remote.py" >> /srv/nfs/rpi4/home/pi/.bashrc
+    sed -i "s/imgs/img/g" write_sd_remote.py
+    mv write_sd_remote.py /srv/nfs/rpi4/home/pi/ 
+    #### make some correction to the script ####
+    # echo "echo raspberry | sudo -S python3 /home/pi/write_sd_remote.py" >> /srv/nfs/rpi4/home/pi/.bashrc
 
-    # Enable autologin (I Think this works?)
-    mkdir -p /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d
-    echo "[Service]" > /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
-    # echo "ExecStart=" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
-    echo "ExecStart=-/sbin/agetty --autologin pi --noclear %I $TERM" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
+    # # Enable autologin (I Think this works?)
+    # mkdir -p /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d
+    # echo "[Service]" > /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
+    # # echo "ExecStart=" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
+    # echo "ExecStart=-/sbin/agetty --autologin pi --noclear %I $TERM" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/autologin.conf
 
-    echo "[Service]" > /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/noclear.conf
-    echo "TTYVTDisallocate=no" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/noclear.conf
+    # echo "[Service]" > /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/noclear.conf
+    # echo "TTYVTDisallocate=no" >> /srv/nfs/rpi4/etc/systemd/system/getty@tty1.service.d/noclear.conf
 
     # Enable and start all services
     systemctl enable dnsmasq
