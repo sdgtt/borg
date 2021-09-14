@@ -48,6 +48,7 @@ Vagrant.configure("2") do |config|
   #
 
   config.vm.provision "file", source: "borg", destination: "$HOME/borg"
+  config.vm.provision "file", source: "supervisor.conf", destination: "$HOME/supervisor.conf"
 
 
   config.vm.provision "shell", env: {"KICKSTART_IP"=> KICKSTART_IP, "SERVER_ROOT_IP"=>SERVER_ROOT_IP}, inline: <<-SHELL
@@ -129,7 +130,15 @@ Vagrant.configure("2") do |config|
     # Start up API server
     apt-get install -y python3-pip
     pip3 install fastapi uvicorn
-    uvicorn borg.main:app --reload --host 0.0.0.0 --port 6000
+    # uvicorn borg.main:app --reload --host 0.0.0.0 --port 6000
+
+    # Install and configure supervisord to manage the borg service
+    apt-get install supervisor
+    service supervisor restart
+    cp $HOME/supervisor.conf /etc/supervisor/conf.d/borg.conf
+    supervisorctl reread
+    supervisorctl update
+    supervisorctl status borg
   SHELL
 
 end
