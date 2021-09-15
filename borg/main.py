@@ -16,10 +16,47 @@ def sbool(v):
   return v.lower() in ("yes", "true", "t", "1")
 
 @app.get("/imgs")
-def get_imgs():
+def get_images():
     """Get available img files"""
+    files = glob.glob("/imgs/kuiper/*")
+    return {
+        "available": files, 
+        "help": "To load image, call /imgs/load/<image_name>.img" 
+    }
+
+@app.get("/imgs/loaded")
+def get_loaded_imgs():
+    """Get loaded image information"""
     files = glob.glob("/srv/nfs/img/*.img")
-    return files
+    return {
+        "loaded": files,
+        "help": "To unload image, call /imgs/unload"
+    }
+
+@app.get("/imgs/load/{image}")
+def load_image(image: str):
+    """Load reference image"""
+    if len(glob.glob("/srv/nfs/img/*.img")) > 0:
+        raise HTTPException(status_code=403, detail=f"An image is currently loaded, please execute /imgs/unload first!")
+    o = os.system(
+        'mv /imgs/kuiper/{} /srv/nfs/img/'.format(image)
+    )
+    if o != 0:
+        raise HTTPException(status_code=500, detail=f"Failed loading image")
+    return {"status": True}
+
+@app.get("/imgs/unload")
+def unload_image():
+    """Unload reference image"""
+    if len(glob.glob("/srv/nfs/img/*.img")) != 1:
+        raise HTTPException(status_code=403, detail=f"No image to unload!")
+    file = glob.glob("/srv/nfs/img/*.img")[0]
+    o = os.system(
+        'mv {} /imgs/kuiper/'.format(file)
+    )
+    if o != 0:
+        raise HTTPException(status_code=403, detail=f"Failed to unload image")
+    return {"status": True}
 
 @app.get("/")
 def root():
