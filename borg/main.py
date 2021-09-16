@@ -76,10 +76,24 @@ def add_dev(serial: str):
         'echo "/srv/nfs/rpi4/boot /srv/tftpboot/{} none defaults,bind 0 0" >> /etc/fstab'.format(serial)
     )
     if o != 0:
-        raise HTTPException(status_code=403, detail=f"Failed to add device to fstab")
+        raise HTTPException(status_code=500, detail=f"Failed to add device to fstab")
     DB().add('devices', serial, 'False')
     return {"status": True}
 
+@app.get("/remove/{serial}")
+def remove_dev(serial: str):
+    """Remove serial from database"""
+    if not serial in get_devices_list():
+        raise HTTPException(status_code=404, detail=f"Device not yet registed. Try to add it first")
+    if sbool(DB().get('devices')[serial]):
+        raise HTTPException(status_code=403, detail=f"Device is currently active. Deactivate device first")
+    o = os.system(
+        "sed '/{}/d' -in /etc/fstab".format(serial)
+    )
+    if o != 0:
+        raise HTTPException(status_code=500, detail=f"Failed to remove device from fstab")
+    DB().remove('devices', serial)
+    return {"status": True}
 
 @app.get("/set/{serial}/{mode}")
 def set_dev(serial: str, mode: bool):
