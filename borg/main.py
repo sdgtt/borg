@@ -15,6 +15,10 @@ def get_devices_list():
 def sbool(v):
   return v.lower() in ("yes", "true", "t", "1")
 
+@app.get("/")
+def root():
+    return {"msg": "We are the Borg. Resistance is futile."}
+
 @app.get("/imgs")
 def get_images():
     """Get available img files"""
@@ -59,10 +63,6 @@ def unload_image():
     if o != 0:
         raise HTTPException(status_code=403, detail=f"Failed to unload image")
     return {"status": True}
-
-@app.get("/")
-def root():
-    return {"msg": "We are the Borg. Resistance is futile."}
 
 @app.get("/devices")
 def list_dev():
