@@ -28,6 +28,8 @@ def get_images():
 def get_loaded_imgs():
     """Get loaded image information"""
     files = glob.glob("/srv/nfs/img/*.img")
+    if len(files) == 0:
+        raise HTTPException(status_code=404, detail=f"No image is currently loaded")
     return {
         "loaded": files,
         "help": "To unload image, call /imgs/unload"
