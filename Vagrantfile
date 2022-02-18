@@ -135,7 +135,7 @@ Vagrant.configure("2") do |config|
     # Install and configure supervisord to manage the borg service
     apt-get install supervisor
     service supervisor restart
-    cp $HOME/supervisor.conf /etc/supervisor/conf.d/borg.conf
+    cp /home/vagrant/supervisor.conf /etc/supervisor/conf.d/borg.conf
     supervisorctl reread
     supervisorctl update
     supervisorctl status borg
